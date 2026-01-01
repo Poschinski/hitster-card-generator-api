@@ -8,6 +8,10 @@ env/
 venv/
 ENV/
 *.egg-info/
+Scripts
+Lib
+pyvenv.cfg
+
 
 # Credentials
 config.json
