@@ -11,7 +11,7 @@ ENV/
 Scripts
 Lib
 pyvenv.cfg
-
+share
 
 # Credentials
 config.json
