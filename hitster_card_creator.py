@@ -3,6 +3,8 @@ Hitster Card Generator
 Generate custom Hitster-style music game cards from Spotify playlists.
 """
 
+from models import Song
+from typing import List
 import qrcode
 import requests
 import numpy as np
@@ -19,6 +21,11 @@ from supabase import create_client, Client
 import re
 import tempfile
 import uuid
+from dotenv import load_dotenv
+from ytmusicapi import YTMusic
+import boto3
+
+load_dotenv()
 
 
 # =============================================================================
@@ -47,12 +54,19 @@ FONT_PATHS = {
     'song': "/home/USER/.fonts/Montserrat-MediumItalic.ttf"
 }
 
-SUPABASE_URL = os.environ.get("SUPABASE_URL")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
-SUPABASE_BUCKET = "hitster-cards"
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+SUPABASE_BUCKET = "hitster-card-creator-storage"
 
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+# supabase: Client = create_client("https://nodgzttrgcsqdmetvtaz.supabase.co", "sb_secret_hrUvnZltLzGlUcwCrdU9VQ_9hV7rJEI")
 
+s3 = boto3.client(
+    "s3",
+    endpoint_url="https://nodgzttrgcsqdmetvtaz.storage.supabase.co/storage/v1/s3",
+    aws_access_key_id="d73b47c002f25a9c86d7cdc885b7fe1f",
+    aws_secret_access_key="7d46678a054e33459c750f932f49998f7c4302180d440c107f501cbd8b2e4aa9",
+    region_name="eu-west-1"
+)
 
 # =============================================================================
 # SPOTIFY API FUNCTIONS
@@ -126,6 +140,74 @@ def parse_playlist_data(playlist_data):
     
     return song_names, release_years, artists, links
 
+# =============================================================================
+# YouTube Music API FUNCTIONS
+# =============================================================================
+
+def fetch_ytmusic_playlist(playlist_url: str):
+    """
+    Fetch all tracks from a YouTube Music playlist.
+
+    Args:
+        playlist_url: Full YouTube Music playlist URL
+
+    Returns:
+        dict: Playlist data incl. tracks
+    """
+    # Extract playlist ID (works for music.youtube.com + youtube.com)
+    match = re.search(r"[?&]list=([^&]+)", playlist_url)
+    if not match:
+        raise ValueError("Invalid YouTube Music playlist URL")
+
+    playlist_id = match.group(1)
+
+    ytmusic = YTMusic()  # anonymous access
+    playlist = ytmusic.get_playlist(playlist_id, limit=None)
+
+    print(playlist)
+
+    if "tracks" not in playlist:
+        raise RuntimeError("Failed to fetch playlist tracks")
+
+    print(f"Playlist: {playlist.get('title')}")
+    print(f"Total tracks: {len(playlist['tracks'])}")
+    print("✓ Fetched all tracks!")
+
+    return playlist
+
+
+def parse_ytmusic_playlist_data(playlist_data):
+    """
+    Extract song information from YouTube Music playlist data.
+
+    Returns:
+        tuple: (song_names, release_years, artists, links)
+    """
+    tracks = playlist_data["tracks"]
+
+    song_names = []
+    release_years = []
+    artists = []
+    links = []
+
+    for track in tracks:
+        title = track.get("title")
+        artist = track["artists"][0]["name"] if track.get("artists") else "Unknown"
+        video_id = track.get("videoId")
+
+        # YouTube Music liefert meistens KEIN Releasejahr
+        year = track.get("year")
+
+        if year is None:
+            # bewusst konservativ
+            year = 0
+
+        song_names.append(title)
+        artists.append(artist)
+        release_years.append(int(year))
+        links.append(f"https://music.youtube.com/watch?v={video_id}")
+
+    return song_names, release_years, artists, links
 
 # =============================================================================
 # CARD GENERATION FUNCTIONS
@@ -436,8 +518,14 @@ def generate_hitster_cards_from_json(songs: List[Song]):
 # =============================================================================
 
 def generate_songs_json(playlist_url, client_id, client_secret):
-    playlist_data = fetch_spotify_playlist(playlist_url, client_id, client_secret)
-    song_names, release_years, artists, links = parse_playlist_data(playlist_data)
+    if ("spotify.com/playlist/" in playlist_url):
+        playlist_data = fetch_spotify_playlist(playlist_url, client_id, client_secret)
+        song_names, release_years, artists, links = parse_playlist_data(playlist_data)
+    elif ("music.youtube.com/playlist" in playlist_url) or ("youtube.com/playlist" in playlist_url):
+        playlist_data = fetch_ytmusic_playlist(playlist_url)
+        song_names, release_years, artists, links = parse_ytmusic_playlist_data(playlist_data)
+    else:
+        raise ValueError("Unsupported playlist URL. Only Spotify and YouTube Music are supported.")
 
     return [
         {
@@ -454,12 +542,21 @@ def generate_songs_json(playlist_url, client_id, client_secret):
 # =============================================================================
 
 def upload_file_to_supabase(local_path: str, remote_path: str) -> str:
+    print(f"Uploading {local_path} to Supabase at {remote_path}...")
     with open(local_path, "rb") as f:
-        supabase.storage.from_(SUPABASE_BUCKET).upload(
+        s3.upload_file(
+            local_path,
+            SUPABASE_BUCKET,
             remote_path,
-            f,
-            file_options={"content-type": "application/octet-stream"}
+            ExtraArgs={
+                "ContentType": "application/pdf"
+            }
         )
 
-    return supabase.storage.from_(SUPABASE_BUCKET).get_public_url(remote_path)
+    public_url = (
+    f"https://nodgzttrgcsqdmetvtaz.supabase.co/"
+    f"storage/v1/object/public/{SUPABASE_BUCKET}/{remote_path}"
+    )
+
+    return public_url
 
