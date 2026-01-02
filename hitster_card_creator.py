@@ -63,8 +63,8 @@ SUPABASE_BUCKET = "hitster-card-creator-storage"
 s3 = boto3.client(
     "s3",
     endpoint_url="https://nodgzttrgcsqdmetvtaz.storage.supabase.co/storage/v1/s3",
-    aws_access_key_id="d73b47c002f25a9c86d7cdc885b7fe1f",
-    aws_secret_access_key="7d46678a054e33459c750f932f49998f7c4302180d440c107f501cbd8b2e4aa9",
+    aws_access_key_id="",
+    aws_secret_access_key="",
     region_name="eu-west-1"
 )
 
@@ -164,7 +164,6 @@ def fetch_ytmusic_playlist(playlist_url: str):
     ytmusic = YTMusic()  # anonymous access
     playlist = ytmusic.get_playlist(playlist_id, limit=None)
 
-    print(playlist)
 
     if "tracks" not in playlist:
         raise RuntimeError("Failed to fetch playlist tracks")
@@ -542,7 +541,6 @@ def generate_songs_json(playlist_url, client_id, client_secret):
 # =============================================================================
 
 def upload_file_to_supabase(local_path: str, remote_path: str) -> str:
-    print(f"Uploading {local_path} to Supabase at {remote_path}...")
     with open(local_path, "rb") as f:
         s3.upload_file(
             local_path,
