@@ -58,8 +58,6 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 SUPABASE_BUCKET = "hitster-card-creator-storage"
 
-# supabase: Client = create_client("https://nodgzttrgcsqdmetvtaz.supabase.co", "sb_secret_hrUvnZltLzGlUcwCrdU9VQ_9hV7rJEI")
-
 s3 = boto3.client(
     "s3",
     endpoint_url="https://nodgzttrgcsqdmetvtaz.storage.supabase.co/storage/v1/s3",
@@ -161,7 +159,7 @@ def fetch_ytmusic_playlist(playlist_url: str):
 
     playlist_id = match.group(1)
 
-    ytmusic = YTMusic()  # anonymous access
+    ytmusic = YTMusic()
     playlist = ytmusic.get_playlist(playlist_id, limit=None)
 
 
@@ -198,7 +196,6 @@ def parse_ytmusic_playlist_data(playlist_data):
         year = track.get("year")
 
         if year is None:
-            # bewusst konservativ
             year = 0
 
         song_names.append(title)
