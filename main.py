@@ -1,29 +1,20 @@
 from hitster_card_creator import generate_songs_json, generate_hitster_cards_from_json, upload_file_to_supabase
+from models import GenerateJsonRequest, GenerateCardsRequest
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-from typing import List
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = FastAPI(title="Hitster Card Generator API")
 
-SPOTIFY_CLIENT_ID = os.environ.get("SPOTIFY_CLIENT_ID")
-SPOTIFY_CLIENT_SECRET = os.environ.get("SPOTIFY_CLIENT_SECRET")
+SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
+SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
 
 # =============================================================================
 # API MODELS
 # =============================================================================
 
-class Song(BaseModel):
-    name: str
-    year: int
-    artist: str
-    link: str
-
-class GenerateJsonRequest(BaseModel):
-    playlist_url: str
-
-class GenerateCardsRequest(BaseModel):
-    songs: List[Song]
 
 @app.post("/generate-json")
 def generate_json(req: GenerateJsonRequest):
